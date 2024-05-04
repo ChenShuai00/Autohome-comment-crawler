@@ -1,151 +1,95 @@
-# 汽车之家口碑爬虫
+# 汽车之家口碑评论爬虫文档
 
+## 概述
 
+本脚本使用Python的异步I/O库`aiohttp`和`asyncio`，以及`BeautifulSoup`来从汽车之家网站上爬取汽车口碑评论。它能够从给定的汽车口碑页面提取评论，并将评论保存为JSON格式。
 
-## 1. 需求
+## 环境配置
 
-输入某个特定汽车口碑URL（例：https://k.autohome.com.cn/5761#pvareaid=3454440）获取用户评论列表的所有信息，用户评论列表如下图：![image-20240321155237598](./汽车之家口碑爬虫.assets/image-20240321155237598.png)
+在运行此脚本之前，需要确保您的环境中安装了以下组件：
 
-以及完整的评论。爬取过程要求异步操作
+- Python 3.7 或更高版本
+- aiohttp
+- aiofiles
+- BeautifulSoup4
+- lxml（推荐，作为BeautifulSoup的解析器）
 
-## 2. python环境配置
+您可以使用pip安装所需的库：
 
-建议使用Anaconda虚拟环境,如何安裝配置Anaconda可在网上搜索资料
-
-1. 安装虚拟环境
-
-```
-conda create -n spider python=3.9
-```
-
-2. 激活环境并安装依赖
-
-```
-conda activate spider
-pip install aiohttp asyncio BeautifulSoup4 
+```bash
+pip install aiohttp aiofiles beautifulsoup4 lxml
 ```
 
-## 3. 代码解释
+## 使用方法
 
-1. 根据特定汽车口碑URL提取seriesld 
+1. 确保您已按照上述“环境配置”安装所有必要的软件和库。
+2. 将脚本保存到您的计算机上。
+3. 修改脚本中的`link`变量，设置为您想要爬取评论的汽车之家口碑页面的URL。
+4. 在脚本所在目录下打开命令行工具。
+5. 运行脚本：
+
+```bash
+python <脚本名称>.py
+```
+
+## 脚本功能
+
+- **解析汽车口碑URL**：从给定的URL中提取汽车的ID。
+- **构建评论列表URL**：生成用于获取评论列表的URL。
+- **异步请求URL**：使用`aiohttp`库异步请求网页内容。
+- **保存JSON数据**：将提取的数据以JSON格式保存到文件中。
+- **提取评论内容**：使用`BeautifulSoup`解析网页并提取评论内容。
+- **主要流程控制**：使用`asyncio`库控制异步任务的执行。
+
+## 代码解释
+
+### 解析汽车口碑URL
 
 ```python
-async def parse_car_url(url):#参数：特定汽车口碑URL
-    url = url   
-    parsed_url = urlparse(url)
-    path_segments = parsed_url.path.split('/')  # Split the path into segments
-    # Extract the number part, assuming it's always after the first '/'
-    seriesld = path_segments[1] if len(path_segments) > 1 else None
-    return seriesld #返回seriesld
+async def parse_car_url(url):
+    ...
 ```
 
-2. 拼接 用户评论列表URL(需要通过网络调试得出其构成)
+`parse_car_url`函数异步解析给定的汽车口碑URL，提取出汽车系列ID和年份ID。
+
+### 请求和保存数据
 
 ```python
-def parse_comment_list_url(seriesld,pageIndex):#参数：seriesld，pageIndex
-    return f"https://koubeiipv6.app.autohome.com.cn/pc/series/list?pm=3&seriesId={seriesld}&pageIndex={pageIndex}"#返回 第pageIndex页用户评论列表URL
+async def request_url(url):
+    ...
+async def save_json(folder_name, filename, dict):
+    ...
 ```
 
-3.向URL发出请求，header需要自己填写
+`request_url`函数异步发送HTTP GET请求并返回响应文本。`save_json`函数异步将字典保存为JSON文件。
 
-```python
-async def request_url(url): #参数：url
-        headers = {}
-        async with aiohttp.ClientSession() as session:
-            async with session.get(url, headers=headers) as response:
-                if response.ok:
-                    response_text = await response.text()
-                    return response_text #返回：响应
-                else:
-                    return None
-```
-
-4. 保存数据为json格式
-
-```python
-async def save_json(folder_name, filename, dict):#参数：文件夹名，文件地址，字典数据
-    if not os.path.exists(folder_name):
-        os.mkdir(folder_name)
-    json_data = json.dumps(dict, indent=4)
-    async with aiofiles.open(filename, 'w') as file:
-        await file.write(json_data)
-```
-
-5. 提取完整评论数据
+### 提取评论内容
 
 ```python
 async def extract_comment(html):
-    soup = BeautifulSoup(html, 'html.parser')
-    attribute_comment_list = []
-    for div in soup.find_all('div', class_='kb-item'):
-        split_text = div.text.split('\n',2)
-        #提取属性
-        attribute = split_text[1]
-        text = "".join(split_text[2:]).replace('\n', '').replace(' ', '')
-        #去除开头数字
-        text = re.sub(r'^\d+', '', text)
-        attribute_comment_list.append({"attribute":attribute, "commment":text})
-    return attribute_comment_list
+    ...
 ```
 
-6. main函数
+`extract_comment`函数使用`BeautifulSoup`解析HTML内容，提取并返回评论属性和文本的列表。
+
+### 主函数
 
 ```python
 async def main(url):
-    #输入汽车口碑url提取汽车ID
-    url = url
-    seriesld = await parse_car_url(url)
-    pageIndex = 2
-    while True:
-        comment_list_url = parse_comment_list_url(seriesld, pageIndex)
-        print(f"**********************爬取第{pageIndex}页评论列表url**************************\n")
-        print(comment_list_url)
-        response_text = await request_url(comment_list_url)
-        if response_text:
-            response_dict = json.loads(response_text)
-            users_comment_list = response_dict["result"]["list"]
-            if len(urers_comment_list):
-                break
-            #将list存储为json文件
-            folder_name = f"{seriesld}"
-            users_comment_list_filename = f"./{folder_name}/pageIndex{pageIndex}.json"
-            await save_json(folder_name, users_comment_list_filename, dict={f"pageIndex{pageIndex}" : users_comment_list})
-            print(f"**********************保存'{users_comment_list_filename}'**************************\n")
-            total_comemnt_dic_list = []
-            for user_index in range(len(users_comment_list)):
-                showid = users_comment_list[user_index]["showId"]
-                username = users_comment_list[user_index]["username"]
-                comment_detail_url = f"https://k.autohome.com.cn/detail/view_{showid}.html"
-                print(f"**********************爬取'{username}'详细评论**************************")
-                print(comment_detail_url)
-                comment_detail_html = await request_url(comment_detail_url)
-                attribute_comment_list = await extract_comment(comment_detail_html)
-                comemnt_dict = {"username":username,"attribute_comment_list":attribute_comment_list}
-                total_comemnt_dic_list.append(comemnt_dict)
-                time.sleep(5)
-            detail_comment_filename = f"./{folder_name}/pageIndex{pageIndex}comment.json"
-            await save_json(folder_name, detail_comment_filename, dict={f"pageIndex{pageIndex}comment" : total_comemnt_dic_list})
-            pageIndex = pageIndex + 1
-            print(f"**********************保存'{detail_comment_filename}'**************************\n")
-            print(f"**********************已爬取'{pageIndex*len(users_comment_list)}'**************************\n")
-        else:
-            print(f"**********************爬取完成**************************\n")
+    ...
 ```
 
-7. 运行
+`main`函数是脚本的主要入口点，它控制整个爬取流程，包括URL解析、请求发送、内容提取和数据保存。
+
+### 程序入口
 
 ```python
-links = [] #可放要爬取的汽车口碑链接
-
-for link in links:
-    loop = asyncio.get_event_loop()
-    try:
-        loop.run_until_complete(main(link))
-    except Exception as e:
-        print(f"Caught exception: {e}")
-    finally:
-        loop.stop()  # 停止事件循环
-        loop.run_until_complete(loop.shutdown_asyncgens())  # 关闭所有异步生成器
-        loop.close()  # 完全关闭事件循环
+if __name__ == "__main__":
+    ...
 ```
 
+程序入口处定义了要爬取的链接，并启动了事件循环来运行`main`函数。
+
+---
+
+请在使用脚本之前根据您的需求调整代码中的路径和参数。此文档提供了脚本的基本使用和功能解释，不涵盖Python异步编程的详细教程。如果您不熟悉Python的异步编程，建议您先阅读相关的教程。
